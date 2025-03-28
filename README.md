@@ -1,4 +1,4 @@
-![Introduction](docs/intro.gif)
+![Introduction](https://github.com/adel-hadadi/gophertype/blob/main/docs/intro.gif)
 # Terminal Typing Game
 
 A fast and minimalistic terminal-based typing game similar to [Monkeytype](https://monkeytype.com/), built with [Golang](https://golang.org/), [Bubbletea](https://github.com/charmbracelet/bubbletea), and [Lipgloss](https://github.com/charmbracelet/lipgloss).
