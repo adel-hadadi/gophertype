@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -76,12 +78,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) GenerateHeader() string {
-	return string(Yellow) +
-		fmt.Sprintf(
-			"%v/%v",
-			m.GameEngine.writedWordsCount,
-			len(m.GameEngine.words),
-		) + string(Reset) + "\n"
+	wordCount := fmt.Sprintf(
+		"%v/%v",
+		m.GameEngine.writedWordsCount,
+		len(m.GameEngine.words),
+	)
+
+	var limitOptions []string
+	var limitOptionsOutput string
+	for _, o := range LimitOptions {
+		s := strconv.Itoa(o)
+		limitOptions = append(limitOptions, s)
+
+		if m.GameEngine.limit == o {
+			limitOptionsOutput += string(Yellow) + s + string(Reset) + " "
+		} else {
+			limitOptionsOutput += s + " "
+		}
+	}
+	limitOptionsOutput += "\n"
+
+	var spaceCount int
+	if m.width > 0 {
+		spaceCount = m.width - 20 - lipgloss.Width(wordCount) - lipgloss.Width(strings.Join(limitOptions, " "))
+	}
+
+	return string(Yellow) + wordCount + string(Reset) + strings.Repeat(" ", spaceCount) + limitOptionsOutput
 }
 
 func (m model) View() string {

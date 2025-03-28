@@ -10,11 +10,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type Limit uint
-
 const (
 	DefualtLimit = 25
 )
+
+var LimitOptions = []int{
+	10,
+	25,
+	50,
+	100,
+}
 
 type Engine struct {
 	words            []string
@@ -22,7 +27,7 @@ type Engine struct {
 	input            string
 	cursorIndex      int
 	writedWordsCount int
-	limit            Limit
+	limit            int
 	finished         bool
 	startTime        time.Time
 	inputCorrectness map[int]bool
@@ -86,6 +91,12 @@ func (e *Engine) ReportStats() {
 	e.Stats.ACC = e.CalculateACC(e.target, e.input)
 }
 
+func (e *Engine) SetLimit(l int) {
+	e.limit = l
+	e.GenerateRandomText()
+	e.ResetGame()
+}
+
 func (e *Engine) CalculateWPM(charsTyped int, timeInSeconds float64) float64 {
 	if timeInSeconds == 0 {
 		return 0
@@ -122,6 +133,22 @@ func (e *Engine) Update(msg tea.KeyMsg) {
 		e.input = e.input[:len(e.input)-1]
 	case tea.KeyCtrlR:
 		e.ResetGame()
+	case tea.KeyDown, tea.KeyUp:
+		m := msg.String()
+		var currentLimitIndex int
+		for k, v := range LimitOptions {
+			if v == e.limit {
+				currentLimitIndex = k
+			}
+		}
+
+		if m == "up" && currentLimitIndex != len(LimitOptions)-1 {
+			e.SetLimit(LimitOptions[currentLimitIndex+1])
+		}
+
+		if m == "down" && currentLimitIndex != 0 {
+			e.SetLimit(LimitOptions[currentLimitIndex-1])
+		}
 	default:
 		if e.finished {
 			return
