@@ -1,17 +1,11 @@
 package main
 
 import (
-	"embed"
-	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
-	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"go.uber.org/zap"
 )
 
 type Color string
@@ -28,9 +22,6 @@ const (
 	White   Color = "\033[97m"
 )
 
-//go:embed words.txt
-var words embed.FS
-
 func main() {
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {
@@ -38,62 +29,29 @@ func main() {
 	}
 	defer f.Close()
 
-	rawJSON := []byte(`{
-	  "level": "debug",
-	  "encoding": "json",
-	  "outputPaths": ["./debug.log"],
-	  "errorOutputPaths": ["stderr"],
-	  "initialFields": {"foo": "bar"},
-	  "encoderConfig": {
-	    "messageKey": "message",
-	    "levelKey": "level",
-	    "levelEncoder": "lowercase"
-	  }
-	}`)
-
-	var cfg zap.Config
-	if err := json.Unmarshal(rawJSON, &cfg); err != nil {
-		panic(err)
-	}
-	logger := zap.Must(cfg.Build())
-	defer logger.Sync()
-
-	logger.Info("logger construction succeeded")
-
-	p := tea.NewProgram(New(logger), tea.WithAltScreen())
+	p := tea.NewProgram(New(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func New(logger *zap.Logger) model {
-	m := model{
-		styledInput:       make(map[int]bool, 0),
-		logger:            logger,
-		enteredWordsCount: 1,
+type model struct {
+	width      int
+	height     int
+	GameEngine *Engine
+}
+
+func New() model {
+	e := NewEngine()
+	e.GenerateRandomText()
+
+	return model{
+		GameEngine: e,
 	}
-
-	m.generateRandomText()
-
-	return m
 }
 
 type Styles struct {
 	BorderColor lipgloss.Color
-}
-
-type model struct {
-	logger            *zap.Logger
-	width             int
-	height            int
-	finished          bool
-	input             string
-	styledInput       map[int]bool
-	words             []string
-	enteredWordsCount int8
-	wpm               float64
-	startTime         time.Time
-	cursorIndex       int
 }
 
 func (m model) Init() tea.Cmd {
@@ -107,103 +65,50 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyEnter:
-			m.input = ""
-			m.enteredWordsCount = 1
-			m.finished = false
-			m.styledInput = make(map[int]bool, 0)
-			m.cursorIndex = 0
-			m.generateRandomText()
-
-			return m, nil
-		case tea.KeyBackspace:
-			if len(m.input) > 0 {
-				if m.cursorIndex > 0 {
-					m.cursorIndex--
-				}
-				m.input = m.input[:len(m.input)-1]
-			}
-			return m, nil
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case tea.KeyCtrlR:
-			m.input = ""
-			m.enteredWordsCount = 1
-			m.finished = false
-			m.styledInput = make(map[int]bool, 0)
-			m.cursorIndex = 0
-
-			return m, nil
 		default:
-			if m.finished {
-				return m, nil
-			}
-
-			for k := range len(msg.String()) {
-				word := string(msg.String()[k])
-
-				if len(m.input) == 0 {
-					m.startTime = time.Now()
-				}
-
-				if word == " " {
-					m.enteredWordsCount++
-				}
-
-				if word != " " || len(m.input) > 0 {
-					target := strings.Join(m.words, " ")
-					m.input += word
-
-					m.styledInput[m.cursorIndex] = string(target[m.cursorIndex]) == word
-				}
-
-				m.cursorIndex++
-
-				if len(m.input) == len(strings.Join(m.words, " ")) {
-					m.finished = true
-					m.wpm = CalculateWPM(len(m.input), float64(time.Since(m.startTime).Seconds()))
-				}
-			}
-
-			return m, nil
+			m.GameEngine.Update(msg)
 		}
 	}
 
 	return m, nil
 }
 
+func (m model) GenerateHeader() string {
+	return string(Yellow) +
+		fmt.Sprintf(
+			"%v/%v",
+			m.GameEngine.writedWordsCount,
+			len(m.GameEngine.words),
+		) + string(Reset) + "\n"
+}
+
 func (m model) View() string {
 	var output string
-	output += string(Yellow) + fmt.Sprintf("%v/%v", m.enteredWordsCount, len(m.words)) + string(Reset) + "\n"
 
-	target := strings.Join(m.words, " ")
+	output += m.GenerateHeader()
 
-	if m.input != "" {
-		for index := range len(m.input) {
-			correct, exists := m.styledInput[index]
+	input := m.GameEngine.input
+	if input != "" {
+		for index := range len(input) {
+			correct, exists := m.GameEngine.inputCorrectness[index]
 			if !exists || correct {
-				output += string(m.input[index])
+				output += string(White) + string(input[index]) + string(Reset)
 			} else {
-				output += string(Red) + string(target[index]) + string(Reset)
+				output += string(Red) + string(m.GameEngine.target[index]) + string(Reset)
 			}
 		}
 	}
 
-	output += colorizedText(Gray, target[len(m.input):])
+	output += colorizedText(Gray, m.GameEngine.target[len(input):])
 
-	if m.finished {
-		var wrong int
-		for _, w := range m.styledInput {
-			if !w {
-				wrong++
-			}
-		}
-
+	if m.GameEngine.finished {
 		output += fmt.Sprintf(
 			"%s\n\n mpm: %.2f acc: %%%v\n Press Entere for next and ctrl+r to play again%s",
 			string(Blue),
-			m.wpm,
-			100-(100*wrong/len(m.styledInput)),
+			m.GameEngine.Stats.WPM,
+			m.GameEngine.Stats.ACC,
 			string(Reset),
 		)
 	}
@@ -215,35 +120,11 @@ func (m model) View() string {
 		lipgloss.Center,
 		lipgloss.JoinVertical(
 			lipgloss.Center,
-			output,
+			lipgloss.NewStyle().Width(m.width-20).Render(output),
 		),
 	)
 }
 
-func (m *model) generateRandomText() {
-	content, err := words.ReadFile("words.txt")
-	if err != nil {
-		log.Fatalf("error on reading words file: %v", err)
-	}
-
-	list := strings.Split(strings.TrimSpace(string(content)), "\n")
-
-	selectedWords := make([]string, 10)
-
-	for i := range 10 {
-		selectedWords[i] = strings.ToLower(list[rand.Intn(len(list))])
-	}
-
-	m.words = selectedWords
-}
-
 func colorizedText(color Color, text string) string {
 	return fmt.Sprintf("%s%s\033[0m", color, text)
-}
-
-func CalculateWPM(charsTyped int, timeInSeconds float64) float64 {
-	if timeInSeconds == 0 {
-		return 0
-	}
-	return (float64(charsTyped) / 5) * (60 / timeInSeconds)
 }
