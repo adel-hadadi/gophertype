@@ -69,6 +69,7 @@ func (e *Engine) ResetGame() {
 	e.writedWordsCount = 0
 	e.finished = false
 	e.cursorIndex = 0
+	e.inputCorrectness = make(map[int]bool)
 }
 
 func (e *Engine) Next() {
