@@ -113,7 +113,7 @@ func (e *Engine) CalculateACC(target, input string) float64 {
 		}
 	}
 
-	return float64(100 - (100 * wrong / len(e.inputCorrectness)))
+	return float64(100 - (100 * wrong / len(e.input)))
 }
 
 func (e *Engine) Update(msg tea.KeyMsg) {
