@@ -1,4 +1,4 @@
-[![Watch the video](https://raw.githubusercontent.com/adel-hadadi/gophertype/main/docs/intro.mp4)](https://raw.githubusercontent.com/adel-hadadi/gophertype/main/docs/intro.mp4)
+![Introduction](./docs/intro.gif)
 # Terminal Typing Game
 
 A fast and minimalistic terminal-based typing game similar to [Monkeytype](https://monkeytype.com/), built with [Golang](https://golang.org/), [Bubbletea](https://github.com/charmbracelet/bubbletea), and [Lipgloss](https://github.com/charmbracelet/lipgloss).
